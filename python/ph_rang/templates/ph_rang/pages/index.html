@@ -1,0 +1,27 @@
+<html>
+	<body>
+		{{szakmai}}<br/>
+		{{kozossegi}}<br/>
+		{{piaci}}<br/>
+		{{blogok}}<br/>
+		{{total}}<br/>
+		{{days}}<br/>
+		i {{i}}<br/>
+		<table>
+		{%for rang in rangok %}		
+			<tr {%if userRang == rang.name %} style="background-color: #00FF00"{% endif %}>
+				<td>{{rang.name}}</td>
+				<td	{% if rang.missingPosts > 0 %}style="background:#FF0000;"{% endif%}>{{rang.posts}}</td>
+				<td {% if rang.missingDays > 0 %}style="background:#FF0000;"{% endif%}> {{rang.days}}</td>
+				<td>{{rang.missingDays}}</td>
+				<td>{{rang.missingPosts}}</td>
+			</tr>
+		{% endfor %}
+		</table>
+		<form method="post">
+			{% csrf_token %}
+			<input type="text" name="userUrl"/>
+			<input type="submit" value="Küld" />
+		</form>
+	</body>
+</html>
