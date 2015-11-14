@@ -1,3 +1,7 @@
 eclipse.preferences.version=1
-encoding//src/price_grabber/ForumParser.java=UTF-8
-encoding//src/price_grabber/Post.java=UTF-8
+encoding//src/hu/droidium/hardverapro/ForumParser.java=UTF-8
+encoding//src/hu/droidium/hardverapro/Post.java=UTF-8
+encoding//src/hu/droidium/hardverapro/price_master/PriceMasterLine.java=UTF-8
+encoding//src/hu/droidium/hardverapro/price_master/PriceMasterPost.java=UTF-8
+encoding//src/hu/droidium/hardverapro/price_master/PricingPost.java=UTF-8
+encoding//src/hu/droidium/hardverapro/price_master/Type.java=UTF-8

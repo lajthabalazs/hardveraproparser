@@ -1,87 +1,30 @@
-package price_grabber;
+package hu.droidium.hardverapro;
 
-import java.awt.Dimension;
-import java.awt.GridLayout;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.swing.JFrame;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-
-public class ForumParser {
+public class ForumParser<T extends Post> {
 	
-	private JTextArea left;
-	private JTextArea right;
+	private PostFactory<T> postFactory;
+	private DateFormat dateParser = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-	public ForumParser() throws IOException {
-		String sessionCookie = getSessionCookie();
-		List<Post> posts = getPosts(sessionCookie);
-		JFrame frame = new JFrame("Hardverapro");
-		JPanel mainPanel = new JPanel(new GridLayout(1,1));
-		left = new JTextArea("");
-		right = new JTextArea("");
-		JScrollPane leftPane = new JScrollPane(left);
-		leftPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-		leftPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-		JScrollPane rightPane = new JScrollPane(right);
-		rightPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-		rightPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
-		leftPane.setPreferredSize(new Dimension(700, 1000));
-		rightPane.setPreferredSize(new Dimension(700, 1000));
-		mainPanel.add(leftPane);
-		mainPanel.add(rightPane);
-		frame.setContentPane(mainPanel);
-		frame.pack();
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		frame.setVisible(true);
-		appendBoth("[M]");
-		// Add text to left and right
-		for (Post p : posts) {
-			if (!p.isOff() && (!p.isPriceMasterPost())){
-				String header = "[B](#" + p.getMessageIndex() + ") " + p.getUserName() + "[/B]\n\n";
-				left.append(header);
-				for (String s : p.getOriginalLines()) {
-					left.append(s);
-					left.append("\n");
-				}
-				left.append("\n\n");
-				if ((p.getProcessedLines().length > 0)) {
-					right.append(header);
-					for (String s : p.getProcessedLines()) {
-						right.append(s + " ~  eFt");
-						right.append("\n");
-					}
-					right.append("\n\n");
-				}
-			}
-		}
-		appendBoth("[B]Ha bármi pontatlanságot találtatok azt jelezzéltek nekem privátban.[/B]\n");
-		appendBoth("[/M]");
+	public ForumParser( PostFactory<T> postFactory) {
+		this.postFactory = postFactory;
 	}
 	
-	public static String getSessionCookie() throws IOException {
-		URL u = new URL("http://prohardver.hu/tema/mennyit_adnal_ezert_a_gepert_alkatreszert_topik/friss.html");
-		HttpURLConnection conn = (HttpURLConnection) u.openConnection();
-		conn.setRequestProperty( "User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.86 Safari/537.36" );
-		conn.connect();
-		for (String cookie : conn.getHeaderFields().get("Set-Cookie")) {
-			log(cookie);
-		}
-		return conn.getHeaderFields().get("Set-Cookie").get(0);
-	}
 
-	
-	public static List<Post> getPosts(String sessionCookie) {
+	public List<T> getPosts(String forum, int from) throws IOException {
+		String sessionCookie = Downloader.getSessionCookie();
 		log("Parsing posts");
 		URL url;
 		InputStream is = null;
@@ -89,16 +32,24 @@ public class ForumParser {
 		String line;
 		int postCount = 0;
 		try {
-			url = new URL("http://prohardver.hu/tema/mennyit_adnal_ezert_a_gepert_alkatreszert_topik/friss.html");
+			if (!forum.endsWith("/")) {
+				forum = forum + "/";
+			}
+			if (from == -1) {
+				forum = forum + "friss.html";
+			} else {
+				forum = forum + "hsz_" + from + "-" + (from -199) +  ".html";
+			}
+			url = new URL(forum);
 			URLConnection conn = url.openConnection();
 			conn.setRequestProperty( "User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.86 Safari/537.36" );
 			conn.setRequestProperty("Cookie", sessionCookie + ";list_msgs=d.200.end;prf_ls_msg=d.200.end;");
 			conn.connect();
 			is = conn.getInputStream();
 			br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-			Post post = null;
+			T post = null;
 			if (br != null) {
-				ArrayList<Post> posts = new ArrayList<Post>();
+				ArrayList<T> posts = new ArrayList<T>();
 				boolean inPosts = false;
 				try {
 					while ((line = br.readLine()) != null) {
@@ -112,7 +63,7 @@ public class ForumParser {
 						if (inPosts) {
 							if (line.contains("<div class=\"msg flc off\">")||line.contains("<div class=\"msg flc\">")) {
 								log("Parsing post " + postCount);
-								post = parsePost(line, br);
+								post = parsePost(line, br, postFactory);
 								break;
 							}
 						}
@@ -120,7 +71,7 @@ public class ForumParser {
 					if (post != null) {
 						posts.add(post);
 						while(post.hasNext()) {
-							post = parsePost(post.getNextLine(), br);
+							post = parsePost(post.getNextLine(), br, postFactory);
 							posts.add(post);
 						}
 					}
@@ -145,8 +96,9 @@ public class ForumParser {
 		return null;
 	}
 
-	private static Post parsePost(String start, BufferedReader br) throws IOException {
-		Post post = new Post();
+	private T parsePost(String start, BufferedReader br, PostFactory<T> postFactory) throws IOException {
+		T post;
+		post = postFactory.getPost();
 		if (start.contains(" off\">")) {
 			post.setOff(true);
 		} else {
@@ -166,6 +118,7 @@ public class ForumParser {
 			}
 			String msg = "<a id=\"msg";
 			String usr = "<a href=\"/tag/";
+			String date = "<li class=\"time\">";
 			if (!afterMessageIndex && line.contains(msg)) {
 				line = line.substring(line.indexOf(msg) + msg.length());
 				line = line.substring(0, line.indexOf("\""));
@@ -179,8 +132,16 @@ public class ForumParser {
 				log("User " + line);
 				post.setUserName(line);				
 				afterUserName = true;
-			}
-			else if (line.contains("<div class=\"text\">")) {
+			} else if(afterMessageIndex && afterUserName && line.contains(date)) {
+				line = line.trim();
+				line = line.substring(date.length(), line.length() - 5);
+				try {
+					post.setDate(dateParser.parse(line));
+				} catch (ParseException e) {
+					post.setDate(null);
+					e.printStackTrace();
+				}
+			} else if (line.contains("<div class=\"text\">")) {
 				inText = true;
 				postLines = new ArrayList<String>();
 				log("In text");
@@ -192,7 +153,7 @@ public class ForumParser {
 			}
 			else if (inText && line.contains("<p class=\"mgt")) {	
 				if (line.contains("<tt>")) {
-					post.setPriceMasterPost(true);
+					post.setHasMonospace(true);
 				}
 				String[] paragraphs = line.split("<p class=\"mgt");				
 				for (String s : paragraphs) {
@@ -211,15 +172,6 @@ public class ForumParser {
 		return post;
 	}
 
-	public static void main(String[] args) throws IOException {
-		new ForumParser();
-	}
-
-	private void appendBoth(String s){
-		left.append(s);
-		right.append(s);
-	}
-	
 	private static void log(String s) {
 		//System.out.println(s);
 	}

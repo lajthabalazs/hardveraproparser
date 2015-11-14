@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -59,6 +60,14 @@ public class Downloader {
 			}
 		}
 		return null;
+	}
+	
+	public static String getSessionCookie() throws IOException {
+		URL u = new URL("http://prohardver.hu/tema/mennyit_adnal_ezert_a_gepert_alkatreszert_topik/friss.html");
+		HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+		conn.setRequestProperty( "User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.86 Safari/537.36" );
+		conn.connect();
+		return conn.getHeaderFields().get("Set-Cookie").get(0);
 	}
 
 	public static void main(String[] args) {
